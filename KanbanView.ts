@@ -60,6 +60,14 @@ export class KanbanView extends ItemView {
 
             const rawTasks = tasksPlugin.getTasks?.() || [];
             this.tasks = this.parseTasks(rawTasks);
+
+            // Second pass: check for active clocks in the vault to force Working column
+            for (const task of this.tasks) {
+                if (await this.plugin.checkIfTaskIsClockedIn(task)) {
+                    task.isClockedIn = true;
+                    task.column = 'Working';
+                }
+            }
         } catch (error) {
             console.error('Error loading tasks:', error);
             new Notice('Error loading tasks from Tasks plugin');

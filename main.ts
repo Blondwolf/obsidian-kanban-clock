@@ -213,48 +213,82 @@ export default class ClockKanbanPlugin extends Plugin {
             if (task.lineNumber < 0 || task.lineNumber >= lines.length) return;
 
             const timestamp = moment().format('YYYY-MM-DDTHH:mm:ss');
-            const nextLineIndex = task.lineNumber + 1;
-            const nextLine = lines[nextLineIndex] || '';
-
-            // Check if next line is a clock property line
-            const clockLineRegex = /^\s*(\[clock::[^\]]+\]\s*)+$/;
-            const isClockLine = clockLineRegex.test(nextLine);
 
             if (type === 'start') {
                 const newClock = `[clock::${timestamp}]`;
-                if (isClockLine) {
-                    lines[nextLineIndex] = nextLine.replace(/\s+$/, '') + " " + newClock;
-                } else {
-                    const taskLine = lines[task.lineNumber];
-                    const indentation = taskLine.match(/^\s*/)?.[0] || '  ';
-                    lines.splice(nextLineIndex, 0, `${indentation}${newClock}`);
+                const taskLine = lines[task.lineNumber];
+                const indentation = taskLine.match(/^\s*/)?.[0] || '  ';
+
+                // Find where to insert: after the task and any existing clock lines
+                let insertIndex = task.lineNumber + 1;
+                while (insertIndex < lines.length && /^\s*(\[clock::[^\]]+\]\s*)+$/.test(lines[insertIndex])) {
+                    insertIndex++;
                 }
+
+                lines.splice(insertIndex, 0, `${indentation}${newClock}`);
             } else {
-                if (isClockLine) {
-                    const openClockRegex = /\[clock::((?:(?!\]|--).)+)\]/g;
+                // Find the last open clock line below the task
+                let searchIndex = task.lineNumber + 1;
+                let lastOpenClockIndex = -1;
+                const openClockRegex = /\[clock::((?:(?!\]|--).)+)\]/;
+
+                while (searchIndex < lines.length && /^\s*(\[clock::[^\]]+\]\s*)+$/.test(lines[searchIndex])) {
+                    if (openClockRegex.test(lines[searchIndex])) {
+                        lastOpenClockIndex = searchIndex;
+                    }
+                    searchIndex++;
+                }
+
+                if (lastOpenClockIndex !== -1) {
+                    const line = lines[lastOpenClockIndex];
                     let match: RegExpExecArray | null;
                     let lastMatch: RegExpExecArray | null = null;
-                    while ((match = openClockRegex.exec(nextLine)) !== null) {
+                    const regex = new RegExp(openClockRegex, 'g');
+                    while ((match = regex.exec(line)) !== null) {
                         lastMatch = match;
                     }
 
                     if (lastMatch) {
                         const startTime = lastMatch[1];
                         const closedClock = `[clock::${startTime}--${timestamp}]`;
-                        const before = nextLine.substring(0, lastMatch.index);
-                        const after = nextLine.substring(lastMatch.index + lastMatch[0].length);
-                        lines[nextLineIndex] = before + closedClock + after;
+                        const before = line.substring(0, lastMatch.index);
+                        const after = line.substring(lastMatch.index + lastMatch[0].length);
+                        lines[lastOpenClockIndex] = before + closedClock + after;
                     }
                 }
             }
 
             await this.app.vault.modify(file, lines.join('\n'));
-
-            // Focus the task line to show the change
-            //await this.focusTask(task);
         } catch (error) {
             console.error('Error managing clock property:', error);
         }
+    }
+
+    /**
+     * Check if a task has an open clock property below it
+     */
+    async checkIfTaskIsClockedIn(task: KanbanTask): Promise<boolean> {
+        try {
+            const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
+            if (!(file instanceof TFile)) return false;
+
+            const content = await this.app.vault.read(file);
+            const lines = content.split('\n');
+            if (task.lineNumber < 0 || task.lineNumber >= lines.length) return false;
+
+            let searchIndex = task.lineNumber + 1;
+            const openClockRegex = /\[clock::((?:(?!\]|--).)+)\]/;
+
+            while (searchIndex < lines.length && /^\s*(\[clock::[^\]]+\]\s*)+$/.test(lines[searchIndex])) {
+                if (openClockRegex.test(lines[searchIndex])) {
+                    return true;
+                }
+                searchIndex++;
+            }
+        } catch (error) {
+            console.error('Error checking clock status:', error);
+        }
+        return false;
     }
 
     /** Manual clock-in for active task */
