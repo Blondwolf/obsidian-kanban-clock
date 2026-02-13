@@ -152,15 +152,8 @@ export default class ClockKanbanPlugin extends Plugin {
                 return;
             }
 
-            // Option 1: Use Day Planner commands
-            if (this.settings.useDayPlannerCommands) {
-                await this.focusTask(task);
-                await this.executeDayPlannerCommand('clock-in');//, task);
-            }
-            else {
-                // Option 2: Add timestamp to task
-                await this.addTimestampToTask(task, 'start');
-            }
+            // Perform clock-in via property
+            await this.manageClockProperty(task, 'start');
 
             new Notice(`⏱️ Clock In: ${task.description.substring(0, 40)}...`);
             console.log(`Clock-in for task: ${task.id}`);
@@ -180,15 +173,8 @@ export default class ClockKanbanPlugin extends Plugin {
                 return;
             }
 
-            // Option 1: Use Day Planner commands
-            if (this.settings.useDayPlannerCommands) {
-                await this.focusTask(task);
-                await this.executeDayPlannerCommand('clock-out');//, task);
-            }
-            else {
-                // Option 2: Add timestamp to task
-                await this.addTimestampToTask(task, 'end');
-            }
+            // Perform clock-out via property
+            await this.manageClockProperty(task, 'end');
 
             new Notice(`⏹️ Clock Out: ${task.description.substring(0, 40)}...`);
             console.log(`Clock-out for task: ${task.id}`);
@@ -215,121 +201,59 @@ export default class ClockKanbanPlugin extends Plugin {
     }
 
     /**
-     * Execute Day Planner command
+     * Manage clock property [clock::...] on the line below the task
      */
-    private async executeDayPlannerCommand(command: 'clock-in' | 'clock-out'): Promise<void> {
-        const appAny = this.app as any;
-
-        // Attendre que le layout soit prêt
-        await new Promise<void>(resolve => {
-            if (this.app.workspace.layoutReady) {
-                resolve();
-            } else {
-                this.app.workspace.onLayoutReady(() => resolve());
-            }
-        });
-
-        // Vérifier que Day Planner est chargé
-        const dayPlanner = appAny.plugins.getPlugin('obsidian-day-planner');
-        if (!dayPlanner) {
-            console.warn('Day Planner plugin not found');
-            return;
-        }
-
-        const commandId = `obsidian-day-planner:${command}`;
-        const success = appAny.commands.executeCommandById(commandId);
-
-        if (!success) {
-            console.warn(`Command ${commandId} not found or failed to execute`);
-        } else {
-            console.log(`Command ${commandId} executed successfully`);
-        }
-    }
-
-    // /**
-    //  * Execute Day Planner command
-    //  */
-    // private async executeDayPlannerCommand(
-    //     command: 'clock-in' | 'clock-out',
-    //     task: KanbanTask
-    // ): Promise<void> {
-    //     const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
-    //     if (!(file instanceof TFile)) return;
-
-    //     const content = await this.app.vault.read(file);
-    //     const lines = content.split('\n');
-    //     if (task.lineNumber < 0 || task.lineNumber >= lines.length) return;
-
-    //     let line = lines[task.lineNumber];
-
-    //     //window.moment().format(clockFormat),
-
-    //     // import dynamique "any"
-    //     const dpProps = await import('obsidian-day-planner/src/util/props') as any;
-    //     const { extractPropsFromLine, addOpenClock, clockOut, toMarkdown } = dpProps;
-
-    //     const props = extractPropsFromLine(line);
-    //     const newProps = command === 'clock-in' ? addOpenClock(props) : clockOut(props);
-    //     const newYaml = toMarkdown(newProps);
-
-    //     line = line.replace(/(\{.*\})$/, newYaml); // à adapter selon ton format
-    //     lines[task.lineNumber] = line;
-
-    //     await this.app.vault.modify(file, lines.join('\n'));
-    // }
-
-
-    /**
-     * Add timestamp to task in Day Planner format
-     * Format: "- [ ] HH:mm Task description"
-     */
-    private async addTimestampToTask(task: KanbanTask, type: 'start' | 'end'): Promise<void> {
+    private async manageClockProperty(task: KanbanTask, type: 'start' | 'end'): Promise<void> {
         try {
             const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
-            if (!(file instanceof TFile)) {
-                return;
-            }
+            if (!(file instanceof TFile)) return;
 
             const content = await this.app.vault.read(file);
             const lines = content.split('\n');
+            if (task.lineNumber < 0 || task.lineNumber >= lines.length) return;
 
-            if (task.lineNumber < 0 || task.lineNumber >= lines.length) {
-                return;
-            }
+            const timestamp = moment().format('YYYY-MM-DDTHH:mm:ss');
+            const nextLineIndex = task.lineNumber + 1;
+            const nextLine = lines[nextLineIndex] || '';
 
-            const line = lines[task.lineNumber];
-            const timestamp = moment().format(this.settings.timeFormat);
+            // Check if next line is a clock property line
+            const clockLineRegex = /^\s*(\[clock::[^\]]+\]\s*)+$/;
+            const isClockLine = clockLineRegex.test(nextLine);
 
-            // Check if timestamp already exists
-            const timestampRegex = /^(- \[.\]) (\d{2}:\d{2}) /;
-
-            let updatedLine: string;
-            if (timestampRegex.test(line)) {
-                // Replace existing timestamp
-                if (type === 'end') {
-                    // For clock-out, add range: "09:00 - 10:30"
-                    const match = line.match(timestampRegex);
-                    if (match) {
-                        const startTime = match[2];
-                        // Replace the entire timestamp part with the range
-                        updatedLine = line.replace(timestampRegex, `$1 ${startTime} - ${timestamp} `);
-                    } else {
-                        updatedLine = line;
-                    }
+            if (type === 'start') {
+                const newClock = `[clock::${timestamp}]`;
+                if (isClockLine) {
+                    lines[nextLineIndex] = nextLine.replace(/\s+$/, '') + " " + newClock;
                 } else {
-                    updatedLine = line.replace(timestampRegex, `$1 ${timestamp} `);
+                    const taskLine = lines[task.lineNumber];
+                    const indentation = taskLine.match(/^\s*/)?.[0] || '  ';
+                    lines.splice(nextLineIndex, 0, `${indentation}${newClock}`);
                 }
             } else {
-                // Add new timestamp
-                updatedLine = line.replace(/^(- \[.\]) /, `$1 ${timestamp} `);
+                if (isClockLine) {
+                    const openClockRegex = /\[clock::((?:(?!\]|--).)+)\]/g;
+                    let match: RegExpExecArray | null;
+                    let lastMatch: RegExpExecArray | null = null;
+                    while ((match = openClockRegex.exec(nextLine)) !== null) {
+                        lastMatch = match;
+                    }
+
+                    if (lastMatch) {
+                        const startTime = lastMatch[1];
+                        const closedClock = `[clock::${startTime}--${timestamp}]`;
+                        const before = nextLine.substring(0, lastMatch.index);
+                        const after = nextLine.substring(lastMatch.index + lastMatch[0].length);
+                        lines[nextLineIndex] = before + closedClock + after;
+                    }
+                }
             }
 
-            if (updatedLine !== line) {
-                lines[task.lineNumber] = updatedLine;
-                await this.app.vault.modify(file, lines.join('\n'));
-            }
+            await this.app.vault.modify(file, lines.join('\n'));
+
+            // Focus the task line to show the change
+            //await this.focusTask(task);
         } catch (error) {
-            console.error('Error adding timestamp:', error);
+            console.error('Error managing clock property:', error);
         }
     }
 
