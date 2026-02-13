@@ -11,6 +11,7 @@ import type { KanbanTask, KanbanColumnType } from './types';
 export default class ClockKanbanPlugin extends Plugin {
     settings: ClockKanbanSettings;
     private kanbanView: KanbanView | null = null;
+    private modificationQueue: Map<string, Promise<void>> = new Map();
 
     async onload(): Promise<void> {
         console.log('Loading Clock Kanban plugin');
@@ -204,63 +205,136 @@ export default class ClockKanbanPlugin extends Plugin {
      * Manage clock property [clock::...] on the line below the task
      */
     private async manageClockProperty(task: KanbanTask, type: 'start' | 'end'): Promise<void> {
-        try {
-            const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
-            if (!(file instanceof TFile)) return;
+        await this.queueFileAction(task.sourcePath, async () => {
+            try {
+                const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
+                if (!(file instanceof TFile)) return;
 
-            const content = await this.app.vault.read(file);
-            const lines = content.split('\n');
-            if (task.lineNumber < 0 || task.lineNumber >= lines.length) return;
+                const content = await this.app.vault.read(file);
+                const lines = content.split('\n');
 
-            const timestamp = moment().format('YYYY-MM-DDTHH:mm:ss');
-
-            if (type === 'start') {
-                const newClock = `[clock::${timestamp}]`;
-                const indentation = '      '; // 6 spaces as requested
-
-                // Find where to insert: after the task and any existing clock lines
-                let insertIndex = task.lineNumber + 1;
-                while (insertIndex < lines.length && /^\s*(\[clock::[^\]]+\]\s*)+$/.test(lines[insertIndex])) {
-                    insertIndex++;
+                // Robust task identification: find current line number
+                let currentLine = this.findTaskInLines(lines, task.description, task.lineNumber);
+                if (currentLine === -1) {
+                    console.warn(`Task not found in file: ${task.description}`);
+                    return;
                 }
+                // Update memory status
+                task.lineNumber = currentLine;
 
-                lines.splice(insertIndex, 0, `${indentation}${newClock}`);
-            } else {
-                // Find the last open clock line below the task
-                let searchIndex = task.lineNumber + 1;
-                let lastOpenClockIndex = -1;
-                const openClockRegex = /\[clock::((?:(?!\]|--).)+)\]/;
+                const timestamp = moment().format('YYYY-MM-DDTHH:mm:ss');
 
-                while (searchIndex < lines.length && /^\s*(\[clock::[^\]]+\]\s*)+$/.test(lines[searchIndex])) {
-                    if (openClockRegex.test(lines[searchIndex])) {
-                        lastOpenClockIndex = searchIndex;
-                    }
-                    searchIndex++;
-                }
+                if (type === 'start') {
+                    const newClock = `[clock::${timestamp}]`;
+                    const indentation = '      '; // 6 spaces as requested
 
-                if (lastOpenClockIndex !== -1) {
-                    const line = lines[lastOpenClockIndex];
-                    let match: RegExpExecArray | null;
-                    let lastMatch: RegExpExecArray | null = null;
-                    const regex = new RegExp(openClockRegex, 'g');
-                    while ((match = regex.exec(line)) !== null) {
-                        lastMatch = match;
+                    // Find where to insert: after the task and any existing clock lines
+                    let insertIndex = currentLine + 1;
+                    while (insertIndex < lines.length && /^\s*(\[clock::[^\]]+\]\s*)+$/.test(lines[insertIndex])) {
+                        insertIndex++;
                     }
 
-                    if (lastMatch) {
-                        const startTime = lastMatch[1];
-                        const closedClock = `[clock::${startTime}--${timestamp}]`;
-                        const before = line.substring(0, lastMatch.index);
-                        const after = line.substring(lastMatch.index + lastMatch[0].length);
-                        lines[lastOpenClockIndex] = before + closedClock + after;
+                    lines.splice(insertIndex, 0, `${indentation}${newClock}`);
+                } else {
+                    // Find the last open clock line below the task
+                    let searchIndex = currentLine + 1;
+                    let lastOpenClockIndex = -1;
+                    const openClockRegex = /\[clock::((?:(?!\]|--).)+)\]/;
+
+                    while (searchIndex < lines.length && /^\s*(\[clock::[^\]]+\]\s*)+$/.test(lines[searchIndex])) {
+                        if (openClockRegex.test(lines[searchIndex])) {
+                            lastOpenClockIndex = searchIndex;
+                        }
+                        searchIndex++;
+                    }
+
+                    if (lastOpenClockIndex !== -1) {
+                        const line = lines[lastOpenClockIndex];
+                        let match: RegExpExecArray | null;
+                        let lastMatch: RegExpExecArray | null = null;
+                        const regex = new RegExp(openClockRegex, 'g');
+                        while ((match = regex.exec(line)) !== null) {
+                            lastMatch = match;
+                        }
+
+                        if (lastMatch) {
+                            const startTime = lastMatch[1];
+                            const closedClock = `[clock::${startTime}--${timestamp}]`;
+                            const before = line.substring(0, lastMatch.index);
+                            const after = line.substring(lastMatch.index + lastMatch[0].length);
+                            lines[lastOpenClockIndex] = before + closedClock + after;
+                        }
                     }
                 }
+
+                await this.app.vault.modify(file, lines.join('\n'));
+            } catch (error) {
+                console.error('Error managing clock property:', error);
             }
+        });
+    }
 
-            await this.app.vault.modify(file, lines.join('\n'));
-        } catch (error) {
-            console.error('Error managing clock property:', error);
+    /** Update task status symbol in file */
+    async updateTaskStatus(task: KanbanTask, column: string): Promise<void> {
+        await this.queueFileAction(task.sourcePath, async () => {
+            try {
+                const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
+                if (!(file instanceof TFile)) return;
+
+                const content = await this.app.vault.read(file);
+                const lines = content.split('\n');
+
+                // Robust task identification
+                let currentLine = this.findTaskInLines(lines, task.description, task.lineNumber);
+                if (currentLine === -1) return;
+                task.lineNumber = currentLine;
+
+                const line = lines[currentLine];
+
+                // Determine new status based on column config
+                const colConfig = this.settings.columns.find(c => c.name === column);
+                let newStatus = colConfig?.symbol || ' ';
+
+                // Replace status in line
+                const updatedLine = line.replace(/- \[([^\]])\]/, `- [${newStatus}]`);
+
+                if (updatedLine !== line) {
+                    lines[currentLine] = updatedLine;
+                    await this.app.vault.modify(file, lines.join('\n'));
+                }
+            } catch (error) {
+                console.error('Error updating task status:', error);
+            }
+        });
+    }
+
+    /** Helper to queue file actions sequentially */
+    private async queueFileAction(path: string, action: () => Promise<void>): Promise<void> {
+        const currentAction = this.modificationQueue.get(path) || Promise.resolve();
+        const nextAction = currentAction.then(action).catch(err => {
+            console.error(`Error in modification queue for ${path}:`, err);
+        });
+        this.modificationQueue.set(path, nextAction);
+        return nextAction;
+    }
+
+    /** Helper to find task line in content precisely */
+    private findTaskInLines(lines: string[], description: string, startIndex: number): number {
+        // 1. Check if it's still at the original position
+        if (startIndex >= 0 && startIndex < lines.length) {
+            if (lines[startIndex].includes(description) && lines[startIndex].includes('- [')) {
+                return startIndex;
+            }
         }
+
+        // 2. Scan file for a matching task line
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes(description) && lines[i].includes('- [')) {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     /**

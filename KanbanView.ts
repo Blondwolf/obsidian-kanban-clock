@@ -78,18 +78,22 @@ export class KanbanView extends ItemView {
 
     /** Parse Tasks plugin tasks to Kanban format */
     parseTasks(rawTasks: any[]): KanbanTask[] {
+        const columns = this.plugin.settings.columns;
         return rawTasks.map((task: any, index: number) => {
-            // Determine column based on status
-            let column: KanbanColumnType = 'TODO';
-            const status = task.status?.type || task.status || 'TODO';
+            // Get symbol from Tasks plugin task
+            // The symbol is usually in task.status.symbol or task.status if it's a string
+            const symbol = task.status?.symbol || (typeof task.status === 'string' ? task.status : ' ');
 
-            // Map Tasks status to columns
-            if (status === 'DONE' || status === 'done' || status === 'x' || status === 'X') {
-                column = 'Done';
-            } else if (status === 'IN_PROGRESS' || status === 'in_progress' || task.isClockedIn) {
-                column = 'Working';
-            } else if (status === 'CANCELLED' || status === 'cancelled' || status === '-') {
-                column = 'Stopped';
+            // Find column matching the symbol
+            const matchingCol = columns.find(c => c.symbol === symbol);
+
+            // Default to the first column if no match found
+            let column = matchingCol ? matchingCol.name : (columns[0]?.name || 'TODO');
+
+            // If it's x but no matching column found, try to find a column named 'Done'
+            if (!matchingCol && (symbol === 'x' || symbol === 'X')) {
+                const doneCol = columns.find(c => c.name.toLowerCase() === 'done');
+                if (doneCol) column = doneCol.name;
             }
 
             return {
@@ -102,13 +106,17 @@ export class KanbanView extends ItemView {
                 priority: task.priority,
                 tags: task.tags || [],
                 dueDate: task.dueDate,
-                isClockedIn: task.isClockedIn || column === 'Working',
+                isClockedIn: task.isClockedIn || column === this.plugin.settings.clockColumn,
                 startTime: task.startTime,
                 endTime: task.endTime,
             };
         }).filter((task: KanbanTask) => {
             // Filter completed tasks if option is disabled
-            if (!this.plugin.settings.showCompletedTasks && task.column === 'Done') {
+            // Find if current column matches a 'done' symbol
+            const colConfig = this.plugin.settings.columns.find(c => c.name === task.column);
+            const isDone = colConfig?.symbol === 'x' || colConfig?.symbol === 'X';
+
+            if (!this.plugin.settings.showCompletedTasks && isDone) {
                 return false;
             }
             return true;
@@ -116,20 +124,25 @@ export class KanbanView extends ItemView {
     }
 
     /** Map Tasks plugin status to our status */
-    mapStatus(tasksStatus: string): 'todo' | 'in_progress' | 'done' | 'cancelled' {
-        const status = String(tasksStatus).toUpperCase();
+    mapStatus(tasksStatus: string | any): 'todo' | 'in_progress' | 'done' | 'cancelled' {
+        // Handle both string and task objects
+        const symbol = typeof tasksStatus === 'object' ? tasksStatus.symbol : String(tasksStatus);
+        const status = symbol.toUpperCase();
+
         switch (status) {
-            case 'DONE':
             case 'X':
                 return 'done';
-            case 'IN_PROGRESS':
+            case '/': // Common in-progress symbol
                 return 'in_progress';
-            case 'CANCELLED':
             case '-':
                 return 'cancelled';
-            case 'TODO':
             case ' ':
             default:
+                // Check if symbol matches our working column
+                const clockCol = this.plugin.settings.columns.find(c => c.name === this.plugin.settings.clockColumn);
+                if (clockCol && symbol === clockCol.symbol) {
+                    return 'in_progress';
+                }
                 return 'todo';
         }
     }
@@ -180,8 +193,8 @@ export class KanbanView extends ItemView {
             text: `(${columnTasks.length})`
         });
 
-        // Highlight if Working
-        if (column.type === 'Working') {
+        // Highlight if it's the Auto-Clock column
+        if (column.name === this.plugin.settings.clockColumn) {
             columnEl.addClass('clock-kanban-working-column');
         }
 
@@ -349,7 +362,7 @@ export class KanbanView extends ItemView {
         task.column = targetColumn;
 
         // 4. Update status in source file
-        await this.updateTaskStatus(task, targetColumn);
+        await this.plugin.updateTaskStatus(task, targetColumn);
 
         // 5. Re-render
         this.render();
@@ -358,39 +371,6 @@ export class KanbanView extends ItemView {
         new Notice(`Moved "${task.description.substring(0, 30)}..." to ${targetColumn}`);
     }
 
-    /** Update task status in source file */
-    async updateTaskStatus(task: KanbanTask, column: KanbanColumnType): Promise<void> {
-        try {
-            const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
-            if (!(file instanceof TFile)) {
-                return;
-            }
-
-            const content = await this.app.vault.read(file);
-            const lines = content.split('\n');
-
-            if (task.lineNumber < 0 || task.lineNumber >= lines.length) {
-                return;
-            }
-
-            const line = lines[task.lineNumber];
-
-            // Determine new status based on column config
-            const colConfig = this.plugin.settings.columns.find(c => c.name === column);
-            let newStatus = colConfig?.symbol || ' ';
-
-            // Replace status in line
-            const updatedLine = line.replace(/- \[([^\]])\]/, `- [${newStatus}]`);
-
-            if (updatedLine !== line) {
-                lines[task.lineNumber] = updatedLine;
-                await this.app.vault.modify(file, lines.join('\n'));
-            }
-        } catch (error) {
-            console.error('Error updating task status:', error);
-            new Notice('Failed to update task status in file');
-        }
-    }
 
     /** Open task in its source file */
     openTask(task: KanbanTask): void {
