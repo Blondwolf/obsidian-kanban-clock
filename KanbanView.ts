@@ -73,7 +73,7 @@ export class KanbanView extends ItemView {
             // Determine column based on status
             let column: KanbanColumnType = 'TODO';
             const status = task.status?.type || task.status || 'TODO';
-            
+
             // Map Tasks status to columns
             if (status === 'DONE' || status === 'done' || status === 'x' || status === 'X') {
                 column = 'Done';
@@ -128,14 +128,14 @@ export class KanbanView extends ItemView {
     /** Main Kanban render */
     render(): void {
         this.containerEl.empty();
-        
+
         // Header with refresh button
         const header = this.containerEl.createDiv({ cls: 'clock-kanban-header' });
         header.createEl('h2', { text: 'Clock Kanban' });
-        
-        const refreshBtn = header.createEl('button', { 
+
+        const refreshBtn = header.createEl('button', {
             cls: 'clock-kanban-refresh',
-            text: '🔄 Refresh' 
+            text: '🔄 Refresh'
         });
         refreshBtn.addEventListener('click', async () => {
             await this.loadTasks();
@@ -145,7 +145,7 @@ export class KanbanView extends ItemView {
 
         // Columns container
         const board = this.containerEl.createDiv({ cls: 'clock-kanban-board' });
-        
+
         this.columns.forEach(column => {
             this.renderColumn(board, column);
         });
@@ -153,7 +153,7 @@ export class KanbanView extends ItemView {
 
     /** Render a column */
     renderColumn(container: HTMLElement, column: KanbanColumnConfig): void {
-        const columnEl = container.createDiv({ 
+        const columnEl = container.createDiv({
             cls: 'clock-kanban-column',
             attr: { 'data-column': column.type }
         });
@@ -161,14 +161,14 @@ export class KanbanView extends ItemView {
         // Column header
         const header = columnEl.createDiv({ cls: 'clock-kanban-column-header' });
         header.style.borderTop = `3px solid ${column.color}`;
-        
+
         const titleEl = header.createEl('h3', { text: column.name });
-        
+
         // Task counter
         const columnTasks = this.tasks.filter(t => t.column === column.type);
-        const counter = header.createSpan({ 
+        const counter = header.createSpan({
             cls: 'clock-kanban-counter',
-            text: `(${columnTasks.length})` 
+            text: `(${columnTasks.length})`
         });
 
         // Highlight if Working
@@ -177,8 +177,8 @@ export class KanbanView extends ItemView {
         }
 
         // Tasks container
-        const tasksContainer = columnEl.createDiv({ 
-            cls: 'clock-kanban-tasks-container' 
+        const tasksContainer = columnEl.createDiv({
+            cls: 'clock-kanban-tasks-container'
         });
 
         // Add tasks to this column
@@ -192,7 +192,7 @@ export class KanbanView extends ItemView {
 
     /** Render a task */
     renderTask(container: HTMLElement, task: KanbanTask): void {
-        const taskEl = container.createDiv({ 
+        const taskEl = container.createDiv({
             cls: 'clock-kanban-task',
             attr: { 'data-task-id': task.id, 'draggable': 'true' }
         });
@@ -206,14 +206,14 @@ export class KanbanView extends ItemView {
 
         // Task content
         const content = taskEl.createDiv({ cls: 'clock-kanban-task-content' });
-        
+
         // Task text
         const desc = content.createDiv({ cls: 'clock-kanban-task-desc' });
         desc.setText(task.description);
 
         // Metadata
         const meta = content.createDiv({ cls: 'clock-kanban-task-meta' });
-        
+
         // Tags
         if (task.tags && task.tags.length > 0) {
             const tagsEl = meta.createDiv({ cls: 'clock-kanban-task-tags' });
@@ -223,13 +223,13 @@ export class KanbanView extends ItemView {
         }
 
         // Priority
-        if (task.priority) {
+        if (task.priority && task.priority !== 'none' as any && task.priority !== '3' as any) {
             const priorityColors: Record<string, string> = {
                 low: '#6b7280',
                 medium: '#f59e0b',
                 high: '#ef4444'
             };
-            const priorityEl = meta.createSpan({ 
+            const priorityEl = meta.createSpan({
                 cls: 'clock-kanban-priority',
                 text: `!${task.priority.charAt(0).toUpperCase()}`
             });
@@ -257,7 +257,7 @@ export class KanbanView extends ItemView {
             this.draggedTaskId = task.id;
             this.draggedSourceColumn = task.column;
             taskEl.addClass('clock-kanban-dragging');
-            
+
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', task.id);
@@ -268,7 +268,7 @@ export class KanbanView extends ItemView {
             taskEl.removeClass('clock-kanban-dragging');
             this.draggedTaskId = null;
             this.draggedSourceColumn = null;
-            
+
             // Clean up highlights
             document.querySelectorAll('.clock-kanban-column-dragover').forEach(el => {
                 el.removeClass('clock-kanban-column-dragover');
@@ -316,8 +316,8 @@ export class KanbanView extends ItemView {
 
     /** Handle moving a task between columns */
     async handleTaskMove(
-        task: KanbanTask, 
-        sourceColumn: KanbanColumnType, 
+        task: KanbanTask,
+        sourceColumn: KanbanColumnType,
         targetColumn: KanbanColumnType
     ): Promise<void> {
         const settings = this.plugin.settings;
@@ -338,7 +338,7 @@ export class KanbanView extends ItemView {
 
         // 3. Update task column
         task.column = targetColumn;
-        
+
         // 4. Update status in source file
         await this.updateTaskStatus(task, targetColumn);
 
@@ -365,20 +365,20 @@ export class KanbanView extends ItemView {
             }
 
             const line = lines[task.lineNumber];
-            
+
             // Determine new status
             let newStatus = ' ';
             if (column === 'Done') {
                 newStatus = 'x';
             } else if (column === 'Stopped') {
                 newStatus = '-';
-            } else if (column === 'Working') {
-                newStatus = '/';
+            } else if (column === 'Working' || column === 'TODO') {
+                newStatus = ' ';
             }
 
             // Replace status in line
             const updatedLine = line.replace(/- \[([ xX/-])\]/, `- [${newStatus}]`);
-            
+
             if (updatedLine !== line) {
                 lines[task.lineNumber] = updatedLine;
                 await this.app.vault.modify(file, lines.join('\n'));

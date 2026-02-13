@@ -2,7 +2,7 @@
  * Clock Kanban plugin for Obsidian
  * Kanban board with automatic clock-in/clock-out via Day Planner
  */
-import { App, Plugin, WorkspaceLeaf, TFile, moment, Notice } from 'obsidian';
+import { Plugin, WorkspaceLeaf, TFile, moment, Notice, debounce, MarkdownView } from 'obsidian';
 import { KanbanView, VIEW_TYPE_CLOCK_KANBAN } from './KanbanView';
 import { ClockKanbanSettings, ClockKanbanSettingTab, DEFAULT_SETTINGS } from './ClockKanbanSettings';
 import type { KanbanTask, KanbanColumnType } from './types';
@@ -11,7 +11,7 @@ import type { KanbanTask, KanbanColumnType } from './types';
 export default class ClockKanbanPlugin extends Plugin {
     settings: ClockKanbanSettings;
     private kanbanView: KanbanView | null = null;
-    
+
     async onload(): Promise<void> {
         console.log('Loading Clock Kanban plugin');
 
@@ -32,6 +32,11 @@ export default class ClockKanbanPlugin extends Plugin {
             id: 'open-clock-kanban',
             name: 'Open Clock Kanban',
             callback: () => this.openKanbanView(),
+        });
+
+        // Add ribbon icon
+        this.addRibbonIcon('kanban', 'Open Clock Kanban', () => {
+            this.openKanbanView();
         });
 
         // Command to refresh Kanban
@@ -62,6 +67,15 @@ export default class ClockKanbanPlugin extends Plugin {
         this.app.workspace.onLayoutReady(() => {
             this.checkAndReopenView();
         });
+
+        // Auto-refresh when Kanban view becomes active
+        this.registerEvent(
+            this.app.workspace.on('active-leaf-change', (leaf) => {
+                if (leaf && leaf.view.getViewType() === VIEW_TYPE_CLOCK_KANBAN) {
+                    this.refreshKanbanView();
+                }
+            })
+        );
 
         console.log('Clock Kanban plugin loaded');
     }
@@ -140,9 +154,10 @@ export default class ClockKanbanPlugin extends Plugin {
 
             // Option 1: Use Day Planner commands
             if (this.settings.useDayPlannerCommands) {
-                await this.executeDayPlannerCommand('clock-in');
+                await this.focusTask(task);
+                await this.executeDayPlannerCommand('clock-in');//, task);
             }
-            else{
+            else {
                 // Option 2: Add timestamp to task
                 await this.addTimestampToTask(task, 'start');
             }
@@ -167,17 +182,35 @@ export default class ClockKanbanPlugin extends Plugin {
 
             // Option 1: Use Day Planner commands
             if (this.settings.useDayPlannerCommands) {
-                await this.executeDayPlannerCommand('clock-out');
+                await this.focusTask(task);
+                await this.executeDayPlannerCommand('clock-out');//, task);
             }
-
-            // Option 2: Add timestamp to task
-            await this.addTimestampToTask(task, 'end');
+            else {
+                // Option 2: Add timestamp to task
+                await this.addTimestampToTask(task, 'end');
+            }
 
             new Notice(`⏹️ Clock Out: ${task.description.substring(0, 40)}...`);
             console.log(`Clock-out for task: ${task.id}`);
         } catch (error) {
             console.error('Error during clock-out:', error);
             new Notice('Failed to clock out. Is Day Planner installed?');
+        }
+    }
+
+    /**
+     * Focus the task in the editor
+     */
+    private async focusTask(task: KanbanTask): Promise<void> {
+        const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
+        if (file instanceof TFile) {
+            await this.app.workspace.getLeaf(false).openFile(file);
+            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (view) {
+                const editor = view.editor;
+                editor.setCursor(task.lineNumber, 0);
+                editor.focus();
+            }
         }
     }
 
@@ -213,6 +246,38 @@ export default class ClockKanbanPlugin extends Plugin {
         }
     }
 
+    // /**
+    //  * Execute Day Planner command
+    //  */
+    // private async executeDayPlannerCommand(
+    //     command: 'clock-in' | 'clock-out',
+    //     task: KanbanTask
+    // ): Promise<void> {
+    //     const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
+    //     if (!(file instanceof TFile)) return;
+
+    //     const content = await this.app.vault.read(file);
+    //     const lines = content.split('\n');
+    //     if (task.lineNumber < 0 || task.lineNumber >= lines.length) return;
+
+    //     let line = lines[task.lineNumber];
+
+    //     //window.moment().format(clockFormat),
+
+    //     // import dynamique "any"
+    //     const dpProps = await import('obsidian-day-planner/src/util/props') as any;
+    //     const { extractPropsFromLine, addOpenClock, clockOut, toMarkdown } = dpProps;
+
+    //     const props = extractPropsFromLine(line);
+    //     const newProps = command === 'clock-in' ? addOpenClock(props) : clockOut(props);
+    //     const newYaml = toMarkdown(newProps);
+
+    //     line = line.replace(/(\{.*\})$/, newYaml); // à adapter selon ton format
+    //     lines[task.lineNumber] = line;
+
+    //     await this.app.vault.modify(file, lines.join('\n'));
+    // }
+
 
     /**
      * Add timestamp to task in Day Planner format
@@ -236,17 +301,18 @@ export default class ClockKanbanPlugin extends Plugin {
             const timestamp = moment().format(this.settings.timeFormat);
 
             // Check if timestamp already exists
-            const timestampRegex = new RegExp(`^(- \[.\]) (\d{2}:\d{2}) `);
-            
+            const timestampRegex = /^(- \[.\]) (\d{2}:\d{2}) /;
+
             let updatedLine: string;
             if (timestampRegex.test(line)) {
                 // Replace existing timestamp
                 if (type === 'end') {
-                    // For clock-out, add range: "09:00-10:30"
-                    const match = line.match(/^(- \[.\]) (\d{2}:\d{2}) /);
+                    // For clock-out, add range: "09:00 - 10:30"
+                    const match = line.match(timestampRegex);
                     if (match) {
                         const startTime = match[2];
-                        updatedLine = line.replace(timestampRegex, `$1 ${startTime}-${timestamp} `);
+                        // Replace the entire timestamp part with the range
+                        updatedLine = line.replace(timestampRegex, `$1 ${startTime} - ${timestamp} `);
                     } else {
                         updatedLine = line;
                     }
