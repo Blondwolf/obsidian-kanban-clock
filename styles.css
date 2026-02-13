@@ -1,0 +1,297 @@
+/**
+ * Styles pour le plugin Clock Kanban
+ * Kanban board avec drag & drop
+ */
+
+/* Container principal */
+.clock-kanban-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px;
+    background-color: var(--background-primary);
+    overflow: hidden;
+}
+
+/* Header */
+.clock-kanban-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.clock-kanban-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+    color: var(--text-normal);
+}
+
+.clock-kanban-refresh {
+    padding: 6px 12px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: opacity 0.2s;
+}
+
+.clock-kanban-refresh:hover {
+    opacity: 0.8;
+}
+
+/* Board - Container des colonnes */
+.clock-kanban-board {
+    display: flex;
+    gap: 16px;
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 8px;
+}
+
+/* Colonne */
+.clock-kanban-column {
+    min-width: 280px;
+    max-width: 320px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.clock-kanban-column:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Colonne Working - highlight spécial */
+.clock-kanban-working-column {
+    background-color: var(--background-primary-alt);
+    border: 2px solid #3b82f6;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+}
+
+/* État drag over sur une colonne */
+.clock-kanban-column-dragover {
+    border-color: var(--interactive-accent) !important;
+    background-color: var(--background-modifier-hover) !important;
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+/* Header de colonne */
+.clock-kanban-column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary-alt);
+    border-radius: 8px 8px 0 0;
+}
+
+.clock-kanban-column-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-normal);
+}
+
+.clock-kanban-counter {
+    font-size: 12px;
+    color: var(--text-muted);
+    background-color: var(--background-modifier-hover);
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+/* Container des tâches */
+.clock-kanban-tasks-container {
+    flex: 1;
+    padding: 12px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Tâche */
+.clock-kanban-task {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    padding: 12px;
+    cursor: grab;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    position: relative;
+}
+
+.clock-kanban-task:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-color: var(--interactive-accent);
+}
+
+.clock-kanban-task:active {
+    cursor: grabbing;
+}
+
+/* Tâche en cours de drag */
+.clock-kanban-dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Tâche avec clock-in actif */
+.clock-kanban-task-active {
+    border-left: 4px solid #3b82f6;
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, var(--background-primary) 100%);
+}
+
+/* Indicateur de clock-in */
+.clock-kanban-indicator {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 14px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Contenu de la tâche */
+.clock-kanban-task-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.clock-kanban-task-desc {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-normal);
+    word-wrap: break-word;
+}
+
+/* Métadonnées de la tâche */
+.clock-kanban-task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    font-size: 11px;
+}
+
+/* Tags */
+.clock-kanban-task-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.clock-kanban-tag {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+}
+
+/* Priorité */
+.clock-kanban-priority {
+    font-weight: 600;
+    font-size: 11px;
+}
+
+/* Date d'échéance */
+.clock-kanban-due {
+    color: var(--text-muted);
+}
+
+/* Scrollbars personnalisées */
+.clock-kanban-board::-webkit-scrollbar,
+.clock-kanban-tasks-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.clock-kanban-board::-webkit-scrollbar-track,
+.clock-kanban-tasks-container::-webkit-scrollbar-track {
+    background: var(--background-secondary);
+    border-radius: 3px;
+}
+
+.clock-kanban-board::-webkit-scrollbar-thumb,
+.clock-kanban-tasks-container::-webkit-scrollbar-thumb {
+    background: var(--background-modifier-border);
+    border-radius: 3px;
+}
+
+.clock-kanban-board::-webkit-scrollbar-thumb:hover,
+.clock-kanban-tasks-container::-webkit-scrollbar-thumb:hover {
+    background: var(--background-modifier-hover);
+}
+
+/* Mode sombre - ajustements */
+.theme-dark .clock-kanban-task:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.theme-dark .clock-kanban-working-column {
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .clock-kanban-column {
+        min-width: 240px;
+        max-width: 280px;
+    }
+    
+    .clock-kanban-board {
+        gap: 12px;
+    }
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.clock-kanban-task {
+    animation: slideIn 0.2s ease-out;
+}
+
+/* Placeholder pendant le drag */
+.clock-kanban-column-dragover .clock-kanban-tasks-container::after {
+    content: 'Drop here';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    border: 2px dashed var(--interactive-accent);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-top: 8px;
+    background-color: var(--background-modifier-hover);
+}
