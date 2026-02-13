@@ -111,6 +111,17 @@ export class KanbanView extends ItemView {
                 endTime: task.endTime,
             };
         }).filter((task: KanbanTask) => {
+            // Folder filtering
+            const folderFilter = this.plugin.settings.folderFilter;
+            if (folderFilter && folderFilter !== '/') {
+                // Ensure folder starts and ends with / appropriately or just use startsWith
+                const normalizedFilter = folderFilter.startsWith('/') ? folderFilter.substring(1) : folderFilter;
+                if (!task.sourcePath.startsWith(normalizedFilter)) {
+                    return false;
+                }
+            }
+            return true;
+        }).filter((task: KanbanTask) => {
             // Filter completed tasks if option is disabled
             // Find if current column matches a 'done' symbol
             const colConfig = this.plugin.settings.columns.find(c => c.name === task.column);
@@ -163,6 +174,27 @@ export class KanbanView extends ItemView {
             await this.loadTasks();
             this.render();
             new Notice('Kanban refreshed');
+        });
+
+        // Folder filter input
+        const filterContainer = header.createDiv({ cls: 'clock-kanban-filter-container' });
+        filterContainer.createSpan({ text: '📁 Filter: ' });
+        const filterInput = filterContainer.createEl('input', {
+            type: 'text',
+            value: this.plugin.settings.folderFilter || '/',
+            placeholder: 'e.g. /tasks'
+        });
+        filterInput.style.marginLeft = '5px';
+        filterInput.style.padding = '4px 8px';
+        filterInput.style.borderRadius = '4px';
+        filterInput.style.border = '1px solid var(--background-modifier-border)';
+
+        filterInput.addEventListener('change', async (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            this.plugin.settings.folderFilter = val;
+            await this.plugin.saveSettings();
+            await this.loadTasks();
+            this.render();
         });
 
         // Columns container

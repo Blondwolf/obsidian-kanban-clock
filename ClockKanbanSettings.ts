@@ -19,6 +19,8 @@ export interface ClockKanbanSettings {
     useDayPlannerCommands: boolean;
     /** Regex to identify task (default: checkbox markdown) */
     taskRegex: string;
+    /** Folder filter for tasks (e.g. /toto) */
+    folderFilter: string;
     /** Customizable columns */
     columns: KanbanColumnConfig[];
 }
@@ -31,6 +33,7 @@ export const DEFAULT_SETTINGS: ClockKanbanSettings = {
     timeFormat: 'HH:mm',
     useDayPlannerCommands: false,
     taskRegex: '- \\[([^\\t\\n\\r])\\]',
+    folderFilter: '',
     columns: [...DEFAULT_COLUMNS],
 };
 

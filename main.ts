@@ -101,19 +101,14 @@ export default class ClockKanbanPlugin extends Plugin {
         const { workspace } = this.app;
 
         // Check if view already exists
-        const existingLeaf = workspace.getLeavesOfType(VIEW_TYPE_CLOCK_KANBAN)[0];
-        if (existingLeaf) {
-            workspace.revealLeaf(existingLeaf);
-            return;
+        let leaf = workspace.getLeavesOfType(VIEW_TYPE_CLOCK_KANBAN)[0];
+
+        if (!leaf) {
+            // Create new leaf in main area
+            leaf = workspace.getLeaf(false);
+            await leaf.setViewState({ type: VIEW_TYPE_CLOCK_KANBAN });
         }
 
-        // Create new leaf in main area
-        const leaf = workspace.getRightLeaf(false);
-        if (!leaf) {
-            new Notice('Could not create Kanban view');
-            return;
-        }
-        await leaf.setViewState({ type: VIEW_TYPE_CLOCK_KANBAN });
         workspace.revealLeaf(leaf);
     }
 
