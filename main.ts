@@ -148,7 +148,7 @@ export default class ClockKanbanPlugin extends Plugin {
      */
     async clockIn(task: KanbanTask): Promise<void> {
         try {
-            if (!this.settings.dayPlannerIntegration) {
+            if (!this.settings.autoClockInOut) {
                 return;
             }
 
@@ -169,7 +169,7 @@ export default class ClockKanbanPlugin extends Plugin {
      */
     async clockOut(task: KanbanTask): Promise<void> {
         try {
-            if (!this.settings.dayPlannerIntegration) {
+            if (!this.settings.autoClockInOut) {
                 return;
             }
 
@@ -216,8 +216,7 @@ export default class ClockKanbanPlugin extends Plugin {
 
             if (type === 'start') {
                 const newClock = `[clock::${timestamp}]`;
-                const taskLine = lines[task.lineNumber];
-                const indentation = taskLine.match(/^\s*/)?.[0] || '  ';
+                const indentation = '      '; // 6 spaces as requested
 
                 // Find where to insert: after the task and any existing clock lines
                 let insertIndex = task.lineNumber + 1;

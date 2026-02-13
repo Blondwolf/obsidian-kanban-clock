@@ -15,7 +15,7 @@ export class KanbanView extends ItemView {
     plugin: ClockKanbanPlugin;
     containerEl: HTMLElement;
     tasks: KanbanTask[] = [];
-    columns: KanbanColumnConfig[] = DEFAULT_COLUMNS;
+    columns: KanbanColumnConfig[] = [];
     draggedTaskId: string | null = null;
     draggedSourceColumn: KanbanColumnType | null = null;
 
@@ -38,6 +38,7 @@ export class KanbanView extends ItemView {
 
     async onOpen(): Promise<void> {
         this.containerEl = this.contentEl.createDiv({ cls: 'clock-kanban-container' });
+        this.columns = this.plugin.settings.columns;
         await this.loadTasks();
         this.render();
     }
@@ -61,11 +62,11 @@ export class KanbanView extends ItemView {
             const rawTasks = tasksPlugin.getTasks?.() || [];
             this.tasks = this.parseTasks(rawTasks);
 
-            // Second pass: check for active clocks in the vault to force Working column
+            // Second pass: check for active clocks in the vault to force into the clock column
             for (const task of this.tasks) {
                 if (await this.plugin.checkIfTaskIsClockedIn(task)) {
                     task.isClockedIn = true;
-                    task.column = 'Working';
+                    task.column = this.plugin.settings.clockColumn;
                 }
             }
         } catch (error) {
@@ -330,15 +331,15 @@ export class KanbanView extends ItemView {
     ): Promise<void> {
         const settings = this.plugin.settings;
 
-        // 1. Clock-out if leaving Working
-        if (sourceColumn === 'Working' && settings.autoClockOut && settings.dayPlannerIntegration) {
+        // 1. Clock-out if leaving the clock column
+        if (sourceColumn === settings.clockColumn && targetColumn !== settings.clockColumn && settings.autoClockInOut) {
             await this.plugin.clockOut(task);
             task.isClockedIn = false;
             task.endTime = moment().format(settings.timeFormat);
         }
 
-        // 2. Clock-in if entering Working
-        if (targetColumn === 'Working' && settings.autoClockIn && settings.dayPlannerIntegration) {
+        // 2. Clock-in if entering the clock column
+        if (targetColumn === settings.clockColumn && sourceColumn !== settings.clockColumn && settings.autoClockInOut) {
             await this.plugin.clockIn(task);
             task.isClockedIn = true;
             task.startTime = moment().format(settings.timeFormat);
@@ -374,18 +375,12 @@ export class KanbanView extends ItemView {
 
             const line = lines[task.lineNumber];
 
-            // Determine new status
-            let newStatus = ' ';
-            if (column === 'Done') {
-                newStatus = 'x';
-            } else if (column === 'Stopped') {
-                newStatus = '-';
-            } else if (column === 'Working' || column === 'TODO') {
-                newStatus = ' ';
-            }
+            // Determine new status based on column config
+            const colConfig = this.plugin.settings.columns.find(c => c.name === column);
+            let newStatus = colConfig?.symbol || ' ';
 
             // Replace status in line
-            const updatedLine = line.replace(/- \[([ xX/-])\]/, `- [${newStatus}]`);
+            const updatedLine = line.replace(/- \[([^\]])\]/, `- [${newStatus}]`);
 
             if (updatedLine !== line) {
                 lines[task.lineNumber] = updatedLine;
@@ -407,6 +402,7 @@ export class KanbanView extends ItemView {
 
     /** Refresh view */
     async refresh(): Promise<void> {
+        this.columns = this.plugin.settings.columns;
         await this.loadTasks();
         this.render();
     }

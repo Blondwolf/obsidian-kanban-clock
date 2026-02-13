@@ -3,7 +3,7 @@
  */
 
 /** Kanban column types */
-export type KanbanColumnType = 'TODO' | 'Working' | 'Stopped' | 'Done';
+export type KanbanColumnType = string;
 
 /** Kanban task interface */
 export interface KanbanTask {
@@ -38,18 +38,18 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
 
 /** Kanban column configuration */
 export interface KanbanColumnConfig {
-    type: KanbanColumnType;
+    type: string;
     name: string;
     color: string;
-    allowsClockIn: boolean;
+    symbol: string;
 }
 
 /** Default columns configuration */
 export const DEFAULT_COLUMNS: KanbanColumnConfig[] = [
-    { type: 'TODO', name: 'TODO', color: '#6b7280', allowsClockIn: false },
-    { type: 'Working', name: 'Working', color: '#3b82f6', allowsClockIn: true },
-    { type: 'Stopped', name: 'Stopped', color: '#f59e0b', allowsClockIn: false },
-    { type: 'Done', name: 'Done', color: '#10b981', allowsClockIn: false },
+    { type: 'TODO', name: 'TODO', color: '#6b7280', symbol: ' ' },
+    { type: 'Working', name: 'Working', color: '#3b82f6', symbol: ' ' },
+    { type: 'Stopped', name: 'Stopped', color: '#f59e0b', symbol: '-' },
+    { type: 'Done', name: 'Done', color: '#10b981', symbol: 'x' },
 ];
 
 /** Drag & drop event */
