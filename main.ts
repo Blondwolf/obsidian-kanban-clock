@@ -47,18 +47,11 @@ export default class ClockKanbanPlugin extends Plugin {
             callback: () => this.refreshKanbanView(),
         });
 
-        // Manual clock-in command
+        // Command to open current folder in Kanban
         this.addCommand({
-            id: 'manual-clock-in',
-            name: 'Manual Clock In (Current Task)',
-            callback: () => this.manualClockIn(),
-        });
-
-        // Manual clock-out command
-        this.addCommand({
-            id: 'manual-clock-out',
-            name: 'Manual Clock Out (Current Task)',
-            callback: () => this.manualClockOut(),
+            id: 'open-current-folder-kanban',
+            name: 'Open current folder in Kanban',
+            callback: () => this.openCurrentFolderInKanban(),
         });
 
         // Add settings tab
@@ -116,14 +109,18 @@ export default class ClockKanbanPlugin extends Plugin {
     async refreshKanbanView(): Promise<void> {
         if (this.kanbanView) {
             await this.kanbanView.refresh();
-            new Notice('Clock Kanban refreshed');
+            if (this.settings.debugMessages) {
+                new Notice('Clock Kanban refreshed');
+            }
         } else {
             // Try to find existing view
             const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLOCK_KANBAN);
             if (leaves.length > 0) {
                 const view = leaves[0].view as KanbanView;
                 await view.refresh();
-                new Notice('Clock Kanban refreshed');
+                if (this.settings.debugMessages) {
+                    new Notice('Clock Kanban refreshed');
+                }
             }
         }
     }
@@ -151,7 +148,9 @@ export default class ClockKanbanPlugin extends Plugin {
             // Perform clock-in via property
             await this.manageClockProperty(task, 'start');
 
-            new Notice(`⏱️ Clock In: ${task.description.substring(0, 40)}...`);
+            if (this.settings.debugMessages) {
+                new Notice(`⏱️ Clock In: ${task.description.substring(0, 40)}...`);
+            }
             console.log(`Clock-in for task: ${task.id}`);
         } catch (error) {
             console.error('Error during clock-in:', error);
@@ -172,7 +171,9 @@ export default class ClockKanbanPlugin extends Plugin {
             // Perform clock-out via property
             await this.manageClockProperty(task, 'end');
 
-            new Notice(`⏹️ Clock Out: ${task.description.substring(0, 40)}...`);
+            if (this.settings.debugMessages) {
+                new Notice(`⏹️ Clock Out: ${task.description.substring(0, 40)}...`);
+            }
             console.log(`Clock-out for task: ${task.id}`);
         } catch (error) {
             console.error('Error during clock-out:', error);
@@ -372,6 +373,29 @@ export default class ClockKanbanPlugin extends Plugin {
                 new Notice('No task in Working column');
             }
         }
+    }
+
+    /** Open the folder of the currently active file in Kanban */
+    private async openCurrentFolderInKanban(): Promise<void> {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile) {
+            new Notice('No active file');
+            return;
+        }
+
+        const parentFolder = activeFile.parent;
+        if (!parentFolder) {
+            new Notice('File has no parent folder');
+            return;
+        }
+
+        const folderPath = parentFolder.path === '/' ? '/' : `/${parentFolder.path}`;
+
+        this.settings.folderFilter = folderPath;
+        await this.saveSettings();
+
+        await this.openKanbanView();
+        await this.refreshKanbanView();
     }
 
     /**

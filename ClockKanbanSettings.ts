@@ -23,6 +23,8 @@ export interface ClockKanbanSettings {
     folderFilter: string;
     /** Customizable columns */
     columns: KanbanColumnConfig[];
+    /** Show non-essential notices (debug mode) */
+    debugMessages: boolean;
 }
 
 /** Default settings */
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: ClockKanbanSettings = {
     taskRegex: '- \\[([^\\t\\n\\r])\\]',
     folderFilter: '',
     columns: [...DEFAULT_COLUMNS],
+    debugMessages: false,
 };
 
 /** Plugin settings tab */
@@ -164,6 +167,16 @@ export class ClockKanbanSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.timeFormat)
                 .onChange(async (value: string) => {
                     this.plugin.settings.timeFormat = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Debug Messages')
+            .setDesc('Show non-essential notices like "Kanban refreshed" or "Clock In/Out"')
+            .addToggle((toggle: ToggleComponent) => toggle
+                .setValue(this.plugin.settings.debugMessages)
+                .onChange(async (value: boolean) => {
+                    this.plugin.settings.debugMessages = value;
                     await this.plugin.saveSettings();
                 }));
 

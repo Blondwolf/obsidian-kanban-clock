@@ -173,7 +173,9 @@ export class KanbanView extends ItemView {
         refreshBtn.addEventListener('click', async () => {
             await this.loadTasks();
             this.render();
-            new Notice('Kanban refreshed');
+            if (this.plugin.settings.debugMessages) {
+                new Notice('Kanban refreshed');
+            }
         });
 
         // Folder filter input (Interactive Navigation)
@@ -443,7 +445,9 @@ export class KanbanView extends ItemView {
         this.render();
 
         // Notification
-        new Notice(`Moved "${task.description.substring(0, 30)}..." to ${targetColumn}`);
+        if (this.plugin.settings.debugMessages) {
+            new Notice(`Moved "${task.description.substring(0, 30)}..." to ${targetColumn}`);
+        }
     }
 
 
