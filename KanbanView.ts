@@ -2,7 +2,7 @@
  * Custom Kanban view for Obsidian
  * Displays tasks in drag & drop columns
  */
-import { ItemView, WorkspaceLeaf, TFile, moment, Notice } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, TFolder, TAbstractFile, moment, Notice } from 'obsidian';
 import type ClockKanbanPlugin from './main';
 import type { KanbanTask, KanbanColumnType, KanbanColumnConfig } from './types';
 import { DEFAULT_COLUMNS } from './types';
@@ -176,21 +176,64 @@ export class KanbanView extends ItemView {
             new Notice('Kanban refreshed');
         });
 
-        // Folder filter input
+        // Folder filter input (Interactive Navigation)
         const filterContainer = header.createDiv({ cls: 'clock-kanban-filter-container' });
-        filterContainer.createSpan({ text: '📁 Filter: ' });
-        const filterInput = filterContainer.createEl('input', {
-            type: 'text',
-            value: this.plugin.settings.folderFilter || '/',
-            placeholder: 'e.g. /tasks'
-        });
-        filterInput.style.marginLeft = '5px';
-        filterInput.style.padding = '4px 8px';
-        filterInput.style.borderRadius = '4px';
-        filterInput.style.border = '1px solid var(--background-modifier-border)';
+        filterContainer.createSpan({ text: '📁' });
 
-        filterInput.addEventListener('change', async (e) => {
-            const val = (e.target as HTMLInputElement).value;
+        const filterSelect = filterContainer.createEl('select');
+        filterSelect.style.marginLeft = '5px';
+        filterSelect.style.padding = '4px 8px';
+        filterSelect.style.borderRadius = '4px';
+        filterSelect.style.border = '1px solid var(--background-modifier-border)';
+
+        const currentPath = this.plugin.settings.folderFilter || '/';
+
+        // 1. Current Full Path (Selected but hidden from dropdown list)
+        const currentOption = filterSelect.createEl('option', {
+            value: currentPath,
+            text: currentPath
+        });
+        currentOption.selected = true;
+        currentOption.style.display = 'none';
+
+        // 2. Parent Navigation
+        if (currentPath !== '/') {
+            const pathParts = currentPath.split('/').filter(p => p.length > 0);
+            pathParts.pop();
+            const parentPath = pathParts.length === 0 ? '/' : '/' + pathParts.join('/');
+
+            filterSelect.createEl('option', {
+                value: parentPath,
+                text: '⤴️ .. (Parent Folder)'
+            });
+        }
+
+
+        // 3. Subfolders
+        try {
+            const folderPath = currentPath === '/' ? '' : (currentPath.startsWith('/') ? currentPath.substring(1) : currentPath);
+            const folder = folderPath === '' ? this.app.vault.getRoot() : this.app.vault.getAbstractFileByPath(folderPath);
+
+            if (folder instanceof TFolder) {
+                const subfolders = folder.children
+                    .filter(child => child instanceof TFolder)
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                subfolders.forEach(sub => {
+                    const subPath = currentPath === '/' ? `/${sub.name}` : `${currentPath}/${sub.name}`;
+                    filterSelect.createEl('option', {
+                        value: subPath,
+                        text: `📁 ${sub.name}`
+                    });
+                });
+            }
+        } catch (e) {
+            console.warn('Could not list subfolders', e);
+        }
+
+        filterSelect.addEventListener('change', async (e) => {
+            const val = (e.target as HTMLSelectElement).value;
+            if (!val) return;
             this.plugin.settings.folderFilter = val;
             await this.plugin.saveSettings();
             await this.loadTasks();

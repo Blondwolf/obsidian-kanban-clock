@@ -181,22 +181,6 @@ export default class ClockKanbanPlugin extends Plugin {
     }
 
     /**
-     * Focus the task in the editor
-     */
-    private async focusTask(task: KanbanTask): Promise<void> {
-        const file = this.app.vault.getAbstractFileByPath(task.sourcePath);
-        if (file instanceof TFile) {
-            await this.app.workspace.getLeaf(false).openFile(file);
-            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-            if (view) {
-                const editor = view.editor;
-                editor.setCursor(task.lineNumber, 0);
-                editor.focus();
-            }
-        }
-    }
-
-    /**
      * Manage clock property [clock::...] on the line below the task
      */
     private async manageClockProperty(task: KanbanTask, type: 'start' | 'end'): Promise<void> {
