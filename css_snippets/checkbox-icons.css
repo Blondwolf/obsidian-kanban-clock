@@ -1,0 +1,101 @@
+/* Custom task icons only — inspiré de Things theme + Minimal/ITS/community */
+/* Place ce snippet après tout thème si tu en utilises un */
+/* Statut '/' (en cours) est EXCLU → coche standard par défaut */
+
+/* Applique les custom overrides UNIQUEMENT aux statuts non-standards (sauf / et x) */
+input[data-task]:not([data-task=" "]):not([data-task="x"]):not([data-task="/"]):checked,
+li[data-task]:not([data-task=" "]):not([data-task="x"]):not([data-task="/"]) > input:checked,
+.plugin-tasks-list-item[data-task]:not([data-task=" "]):not([data-task="x"]):not([data-task="/"]) > .task-list-item-checkbox:checked {
+  --checkbox-marker-color: transparent;
+  border: none;
+  border-radius: 0;
+  background-image: none;
+  background-color: currentColor;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+}
+
+/* ─── Les icônes spécifiques (comme dans Things) ─── */
+
+/* > (forwarded / reporté) */
+input[data-task='>']:checked,
+li[data-task='>'] > input:checked,
+.plugin-tasks-list-item[data-task='>'] > .task-list-item-checkbox:checked {
+  color: var(--text-faint);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z' /%3E%3C/svg%3E");
+}
+
+/* < (scheduled / planifié) */
+input[data-task='<']:checked,
+li[data-task='<'] > input:checked,
+.plugin-tasks-list-item[data-task='<'] > .task-list-item-checkbox:checked {
+  color: var(--text-faint);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd' /%3E%3C/svg%3E");
+}
+
+/* ? (question / bloqué) */
+input[data-task='?']:checked,
+li[data-task='?'] > input:checked,
+.plugin-tasks-list-item[data-task='?'] > .task-list-item-checkbox:checked {
+  background-color: var(--color-yellow);
+  border-color: var(--color-yellow);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 16 16'%3E%3Cpath fill='white' fill-rule='evenodd' d='M4.475 5.458c-.284 0-.514-.237-.47-.517C4.28 3.24 5.576 2 7.825 2c2.25 0 3.767 1.36 3.767 3.215c0 1.344-.665 2.288-1.79 2.973c-1.1.659-1.414 1.118-1.414 2.01v.03a.5.5 0 0 1-.5.5h-.77a.5.5 0 0 1-.5-.495l-.003-.2c-.043-1.221.477-2.001 1.645-2.712c1.03-.632 1.397-1.135 1.397-2.028c0-.979-.758-1.698-1.926-1.698c-1.009 0-1.71.529-1.938 1.402c-.066.254-.278.461-.54.461h-.777ZM7.496 14c.622 0 1.095-.474 1.095-1.09c0-.618-.473-1.092-1.095-1.092c-.606 0-1.087.474-1.087 1.091S6.89 14 7.496 14Z'/%3E%3C/svg%3E");
+}
+
+/* ! (important / alerte) */
+input[data-task='!']:checked,
+li[data-task='!'] > input:checked,
+.plugin-tasks-list-item[data-task='!'] > .task-list-item-checkbox:checked {
+  color: var(--color-orange);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z' clip-rule='evenodd' /%3E%3C/svg%3E");
+}
+
+/* * (star / priorité) */
+input[data-task='*']:checked,
+li[data-task='*'] > input:checked,
+.plugin-tasks-list-item[data-task='*'] > .task-list-item-checkbox:checked {
+  color: var(--color-yellow);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z' /%3E%3C/svg%3E");
+}
+
+/* - (canceled / abandonné) */
+input[data-task='-']:checked,
+li[data-task='-'] > input:checked,
+.plugin-tasks-list-item[data-task='-'] > .task-list-item-checkbox:checked {
+  color: var(--text-faint);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z' clip-rule='evenodd' /%3E%3C/svg%3E");
+}
+
+/* / (en cours) – moitié gauche remplie, droite vide, comme Things */
+input[data-task='/']:checked,
+li[data-task='/'] > input:checked,
+.plugin-tasks-list-item[data-task='/'] > .task-list-item-checkbox:checked {
+  position: relative;
+  overflow: hidden;
+}
+
+input[data-task='/']:checked::after,  /*  */
+li[data-task='/'] > input:checked::after,
+.plugin-tasks-list-item[data-task='/'] > .task-list-item-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background-color: var(--color-accent);
+  z-index: 1;  /* au cas où */
+}
+
+input[data-task='/']:checked {
+  background: linear-gradient(to right, var(--color-accent) 50%, transparent 50%) !important;
+}
+
+/* f (fire/urgent) */
+input[data-task='f']:checked,
+li[data-task='f'] > input:checked,
+.plugin-tasks-list-item[data-task='f'] > .task-list-item-checkbox:checked {
+  color: var(--color-red);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z' clip-rule='evenodd' /%3E%3C/svg%3E");
+}
