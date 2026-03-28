@@ -211,26 +211,31 @@ export class KanbanView extends ItemView {
         }
 
 
-        // 3. Subfolders
+        // 3. Subfolders and Files
         try {
             const folderPath = currentPath === '/' ? '' : (currentPath.startsWith('/') ? currentPath.substring(1) : currentPath);
             const folder = folderPath === '' ? this.app.vault.getRoot() : this.app.vault.getAbstractFileByPath(folderPath);
 
             if (folder instanceof TFolder) {
-                const subfolders = folder.children
-                    .filter(child => child instanceof TFolder)
-                    .sort((a, b) => a.name.localeCompare(b.name));
+                const children = [...folder.children].sort((a, b) => a.name.localeCompare(b.name));
 
-                subfolders.forEach(sub => {
-                    const subPath = currentPath === '/' ? `/${sub.name}` : `${currentPath}/${sub.name}`;
-                    filterSelect.createEl('option', {
-                        value: subPath,
-                        text: `📁 ${sub.name}`
-                    });
+                children.forEach(child => {
+                    const childPath = currentPath === '/' ? `/${child.name}` : `${currentPath}/${child.name}`;
+                    if (child instanceof TFolder) {
+                        filterSelect.createEl('option', {
+                            value: childPath,
+                            text: `📁 ${child.name}`
+                        });
+                    } else if (child instanceof TFile && child.extension === 'md') {
+                        filterSelect.createEl('option', {
+                            value: childPath,
+                            text: `📄 ${child.name}`
+                        });
+                    }
                 });
             }
         } catch (e) {
-            console.warn('Could not list subfolders', e);
+            console.warn('Could not list subfolders or files', e);
         }
 
         filterSelect.addEventListener('change', async (e) => {
