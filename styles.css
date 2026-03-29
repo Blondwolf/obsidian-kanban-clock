@@ -27,6 +27,7 @@
     margin: 0;
     font-size: 1.5em;
     color: var(--text-normal);
+    flex: 1;
 }
 
 .clock-kanban-refresh {
@@ -42,6 +43,36 @@
 
 .clock-kanban-refresh:hover {
     opacity: 0.8;
+}
+
+.clock-kanban-today {
+    padding: 6px 12px;
+    background-color: var(--background-secondary-alt);
+    color: var(--text-muted);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.clock-kanban-header-right {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+}
+
+.clock-kanban-today:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.clock-kanban-today.active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
 }
 
 /* Board - Container des colonnes */

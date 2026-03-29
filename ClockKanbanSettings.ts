@@ -25,6 +25,8 @@ export interface ClockKanbanSettings {
     columns: KanbanColumnConfig[];
     /** Show non-essential notices (debug mode) */
     debugMessages: boolean;
+    /** Excluded folders (e.g. /Archive) */
+    excludedFolders: string[];
 }
 
 /** Default settings */
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: ClockKanbanSettings = {
     folderFilter: '',
     columns: [...DEFAULT_COLUMNS],
     debugMessages: false,
+    excludedFolders: [],
 };
 
 /** Plugin settings tab */
@@ -192,6 +195,39 @@ export class ClockKanbanSettingTab extends PluginSettingTab {
                 .onChange(async (value: string) => {
                     this.plugin.settings.taskRegex = value;
                     await this.plugin.saveSettings();
+                }));
+
+        // Section: Excluded Folders
+        containerEl.createEl('h3', { text: 'Excluded Folders' });
+        const excludedContainer = containerEl.createDiv('excluded-folders-settings');
+
+        this.plugin.settings.excludedFolders.forEach((folder, index) => {
+            new Setting(excludedContainer)
+                .setName(`Folder ${index + 1}`)
+                .addText(text => text
+                    .setPlaceholder('/Archive')
+                    .setValue(folder)
+                    .onChange(async (val) => {
+                        this.plugin.settings.excludedFolders[index] = val;
+                        await this.plugin.saveSettings();
+                    }))
+                .addButton(btn => btn
+                    .setIcon('trash')
+                    .setTooltip('Remove Folder')
+                    .onClick(async () => {
+                        this.plugin.settings.excludedFolders.splice(index, 1);
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+        });
+
+        new Setting(containerEl)
+            .addButton(btn => btn
+                .setButtonText('Add Folder')
+                .onClick(async () => {
+                    this.plugin.settings.excludedFolders.push('');
+                    await this.plugin.saveSettings();
+                    this.display();
                 }));
 
         // Required plugins info

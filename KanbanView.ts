@@ -18,6 +18,18 @@ export class KanbanView extends ItemView {
     columns: KanbanColumnConfig[] = [];
     draggedTaskId: string | null = null;
     draggedSourceColumn: KanbanColumnType | null = null;
+    private isTodayFilterActive: boolean = false;
+
+    private normalizePath(path: string): string {
+        if (!path || path === '/') return '/';
+        const p = path.startsWith('/') ? path : '/' + path;
+        return p.replace(/\/+/g, '/');
+    }
+
+    private getFsPath(path: string): string {
+        const normalized = this.normalizePath(path);
+        return normalized.startsWith('/') ? normalized.substring(1) : normalized;
+    }
 
     constructor(leaf: WorkspaceLeaf, plugin: ClockKanbanPlugin) {
         super(leaf);
@@ -111,11 +123,34 @@ export class KanbanView extends ItemView {
                 endTime: task.endTime,
             };
         }).filter((task: KanbanTask) => {
+            // Today filter
+            if (this.isTodayFilterActive) {
+                if (!task.dueDate) return false;
+                const today = moment().format('YYYY-MM-DD');
+                return task.dueDate === today;
+            }
+            return true;
+        }).filter((task: KanbanTask) => {
+            // Folder exclusion
+            const excludedFolders = this.plugin.settings.excludedFolders;
+            if (excludedFolders && excludedFolders.length > 0) {
+                for (const folder of excludedFolders) {
+                    if (!folder) continue;
+                    // Normalize folder: remove leading slash if present (Obsidian paths don't start with /)
+                    const normalizedFolder = folder.startsWith('/') ? folder.substring(1) : folder;
+                    // Check if path starts with folder + / to ensure it's a sub-directory match, 
+                    // or exact match if folder is the same as task source path (though tasks are in files)
+                    if (task.sourcePath.startsWith(normalizedFolder)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }).filter((task: KanbanTask) => {
             // Folder filtering
             const folderFilter = this.plugin.settings.folderFilter;
             if (folderFilter && folderFilter !== '/') {
-                // Ensure folder starts and ends with / appropriately or just use startsWith
-                const normalizedFilter = folderFilter.startsWith('/') ? folderFilter.substring(1) : folderFilter;
+                const normalizedFilter = this.getFsPath(folderFilter);
                 if (!task.sourcePath.startsWith(normalizedFilter)) {
                     return false;
                 }
@@ -166,6 +201,8 @@ export class KanbanView extends ItemView {
         const header = this.containerEl.createDiv({ cls: 'clock-kanban-header' });
         header.createEl('h2', { text: 'Clock Kanban' });
 
+
+        // Center: Refresh button
         const refreshBtn = header.createEl('button', {
             cls: 'clock-kanban-refresh',
             text: '🔄 Refresh'
@@ -178,8 +215,22 @@ export class KanbanView extends ItemView {
             }
         });
 
+        // Right side: Grouped controls (Today + Filter)
+        const rightControls = header.createDiv({ cls: 'clock-kanban-header-right' });
+
+        // "Today" button (to the left of the filter)
+        const todayBtn = rightControls.createEl('button', {
+            cls: 'clock-kanban-today' + (this.isTodayFilterActive ? ' active' : ''),
+            text: '📅 Today'
+        });
+        todayBtn.addEventListener('click', async () => {
+            this.isTodayFilterActive = !this.isTodayFilterActive;
+            await this.loadTasks();
+            this.render();
+        });
+
         // Folder filter input (Interactive Navigation)
-        const filterContainer = header.createDiv({ cls: 'clock-kanban-filter-container' });
+        const filterContainer = rightControls.createDiv({ cls: 'clock-kanban-filter-container' });
         filterContainer.createSpan({ text: '📁' });
 
         const filterSelect = filterContainer.createEl('select');
@@ -188,7 +239,18 @@ export class KanbanView extends ItemView {
         filterSelect.style.borderRadius = '4px';
         filterSelect.style.border = '1px solid var(--background-modifier-border)';
 
-        const currentPath = this.plugin.settings.folderFilter || '/';
+        this.plugin.settings.folderFilter = this.normalizePath(this.plugin.settings.folderFilter || '/');
+        const currentPath = this.plugin.settings.folderFilter;
+        const currentFile = this.app.vault.getAbstractFileByPath(this.getFsPath(currentPath));
+
+        let navigationFolder: TFolder;
+        if (currentFile instanceof TFile && currentFile.parent) {
+            navigationFolder = currentFile.parent;
+        } else if (currentFile instanceof TFolder) {
+            navigationFolder = currentFile;
+        } else {
+            navigationFolder = this.app.vault.getRoot();
+        }
 
         // 1. Current Full Path (Selected but hidden from dropdown list)
         const currentOption = filterSelect.createEl('option', {
@@ -199,41 +261,51 @@ export class KanbanView extends ItemView {
         currentOption.style.display = 'none';
 
         // 2. Parent Navigation
-        if (currentPath !== '/') {
-            const pathParts = currentPath.split('/').filter(p => p.length > 0);
-            pathParts.pop();
-            const parentPath = pathParts.length === 0 ? '/' : '/' + pathParts.join('/');
+        if (navigationFolder.path !== '' && navigationFolder.path !== '/') {
+            const parentPath = navigationFolder.parent?.path || '';
+            const normalizedParent = this.normalizePath(parentPath);
 
             filterSelect.createEl('option', {
-                value: parentPath,
-                text: '⤴️ .. (Parent Folder)'
+                value: normalizedParent,
+                text: `⤴️ .. (${navigationFolder.parent?.name || 'Root'})`
             });
         }
 
+        // 3. Current Navigation Folder (Show if we are filtering a file within it)
+        const navPath = this.normalizePath(navigationFolder.path);
+        if (currentPath !== navPath) {
+            filterSelect.createEl('option', {
+                value: navPath,
+                text: `📁 ${navigationFolder.name || '/ (Root)'}`
+            });
+        }
 
-        // 3. Subfolders and Files
+        // 4. Subfolders and Files
         try {
-            const folderPath = currentPath === '/' ? '' : (currentPath.startsWith('/') ? currentPath.substring(1) : currentPath);
-            const folder = folderPath === '' ? this.app.vault.getRoot() : this.app.vault.getAbstractFileByPath(folderPath);
+            const children = [...navigationFolder.children].sort((a, b) => a.name.localeCompare(b.name));
 
-            if (folder instanceof TFolder) {
-                const children = [...folder.children].sort((a, b) => a.name.localeCompare(b.name));
+            children.forEach(child => {
+                const childPath = this.normalizePath(child.path);
+                if (child instanceof TFolder) {
+                    // Check if folder is excluded
+                    const isExcluded = this.plugin.settings.excludedFolders.some(folder => {
+                        if (!folder) return false;
+                        const normalizedFolder = folder.startsWith('/') ? folder : `/${folder}`;
+                        return childPath === normalizedFolder || childPath.startsWith(normalizedFolder + '/');
+                    });
+                    if (isExcluded) return;
 
-                children.forEach(child => {
-                    const childPath = currentPath === '/' ? `/${child.name}` : `${currentPath}/${child.name}`;
-                    if (child instanceof TFolder) {
-                        filterSelect.createEl('option', {
-                            value: childPath,
-                            text: `📁 ${child.name}`
-                        });
-                    } else if (child instanceof TFile && child.extension === 'md') {
-                        filterSelect.createEl('option', {
-                            value: childPath,
-                            text: `📄 ${child.name}`
-                        });
-                    }
-                });
-            }
+                    filterSelect.createEl('option', {
+                        value: childPath,
+                        text: `📁 ${child.name}`
+                    });
+                } else if (child instanceof TFile && child.extension === 'md') {
+                    filterSelect.createEl('option', {
+                        value: childPath,
+                        text: `📄 ${child.name}`
+                    });
+                }
+            });
         } catch (e) {
             console.warn('Could not list subfolders or files', e);
         }
@@ -241,7 +313,8 @@ export class KanbanView extends ItemView {
         filterSelect.addEventListener('change', async (e) => {
             const val = (e.target as HTMLSelectElement).value;
             if (!val) return;
-            this.plugin.settings.folderFilter = val;
+            this.isTodayFilterActive = false; // Disable today filter when specific folder is selected
+            this.plugin.settings.folderFilter = this.normalizePath(val);
             await this.plugin.saveSettings();
             await this.loadTasks();
             this.render();
